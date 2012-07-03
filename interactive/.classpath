@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="src" path="mapred"/>
+	<classpathentry kind="src" path="core"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/xmlenc-0.52.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/slf4j-log4j12-1.4.3.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/slf4j-api-1.4.3.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/servlet-api-2.5-6.1.14.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/platform-belle-0.19.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/oro-2.0.8.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/org.arabidopsis.ahocorasick-1.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/log4j-1.2.15.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/kfs-0.2.0.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/junit-3.8.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/jetty-yunti-r96013.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/jetty-util-yunti-r117646.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/jets3t-0.6.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/hsqldb-1.8.0.10.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/hadoop-snappy-0.0.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/hadoop-0.19.1-dc-yunti3scheduler.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/hadoop-0.19.1-dc-fairscheduler.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/deploy.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-net-1.4.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-logging-api-1.0.4.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-logging-1.0.4.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-lang-2.5.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-httpclient-3.0.1.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-codec-1.3.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/lib/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/hadoop-0.19.1-dc-tools.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/hadoop-0.19.1-dc-streaming.jar"/>
+	<classpathentry kind="lib" path="D:/hadoop-0.19.1/hadoop-0.19.1-dc-core.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

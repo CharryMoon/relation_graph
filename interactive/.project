@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>interactive</name>
+	<comment></comment>
+	<projects>
+	</projects>
+	<buildSpec>
+		<buildCommand>
+			<name>org.eclipse.jdt.core.javabuilder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
+	</buildSpec>
+	<natures>
+		<nature>org.apache.hadoop.eclipse.Nature</nature>
+		<nature>org.eclipse.jdt.core.javanature</nature>
+	</natures>
+	<linkedResources>
+		<link>
+			<name>core</name>
+			<type>2</type>
+			<location>D:/hadoop-0.19.1/src/core</location>
+		</link>
+		<link>
+			<name>mapred</name>
+			<type>2</type>
+			<location>D:/hadoop-0.19.1/src/mapred</location>
+		</link>
+	</linkedResources>
+</projectDescription>
