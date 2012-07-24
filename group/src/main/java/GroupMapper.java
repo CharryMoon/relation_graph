@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
@@ -26,10 +25,12 @@ public class GroupMapper extends Mapper<LongWritable, Text, Text, Text> {
 	// index for s_group_group_thread_plus
 	private int THREAD_ID_INDEX_T = 0;
 	private int DELETED_INDEX_T = 8;
+	private int AUTHOR_ID_INDEX_T = 11;
 	private int GMT_CREATE_INDEX_T = 19;
 	// index for s_group_thread_body_plus
 	private int THREAD_ID_INDEX_B  = 0;
 	private int CONTENT_INDEX_B  = 2;
+	private String FILTERSTRING = "分享图片";
 	
 	private String source = "";
 	
@@ -58,13 +59,18 @@ public class GroupMapper extends Mapper<LongWritable, Text, Text, Text> {
 				Date d = null;
 				SimpleDateFormat sdf = new SimpleDateFormat("yy-MM-dd");
 				d = sdf.parse(fields.get(GMT_CREATE_INDEX_T).substring(0,10));
-				context.write(new Text(fields.get(THREAD_ID_INDEX_T)), new Text((now-d.getTime())/dayUnit + "\t" + "1"));
+				context.write(new Text(fields.get(THREAD_ID_INDEX_T)), 
+						new Text("1" + "\t" + fields.get(AUTHOR_ID_INDEX_T) + "\t" + (now-d.getTime())/dayUnit ));
 			} catch (Exception e) {
 				return;
 			}
 		}
 		else{
-			context.write(new Text(fields.get(THREAD_ID_INDEX_B)), new Text(fields.get(CONTENT_INDEX_B) +"\t"+ "2"));
+			// 去掉 分享图片 这个词的
+			String content = fields.get(CONTENT_INDEX_B).replaceAll("\\<.*?>","");
+			if(FILTERSTRING.equals(content))
+				return;
+			context.write(new Text(fields.get(THREAD_ID_INDEX_B)), new Text("2" +"\t"+ content ));
 		}
 	}
 	
