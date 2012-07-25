@@ -24,7 +24,14 @@ public class Employee {
 	public static final int WITHBUSINESS = 8;
 	public static final int FULL = 15;
 	public static final int MATCHED = 16;
+	/**
+	 * 本身有的类型， MATCHED 只记录在这个type里面
+	 */
 	private int type;
+	/**
+	 * 和目标匹配上得类型
+	 */
+	private int matchedType;
 	
 	public String getUserId() {
 		return userId;
@@ -79,6 +86,12 @@ public class Employee {
 	}
 	public void setType(int type) {
 		this.type = type;
+	}
+	public void setMatchedType(int matchedType) {
+		this.matchedType = matchedType;
+	}
+	public int getMatchedType() {
+		return matchedType;
 	}
 	
 }

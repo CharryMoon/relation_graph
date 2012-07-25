@@ -163,11 +163,22 @@ public class SameCompany extends Configured implements Tool {
 			}
 		}
 	
+		/**
+		 * 传入的员工对象中的type是他原来拥有的属性，比如有工作时间，有部门等等。
+		 * 如果命中了就会修改原来的属性标记为匹配标记。
+		 * 比如原来是有工作时间，那么oldtype = Employee.BASIC|Employee.WITHDAY
+		 * 如果工作时间一致，那么newtype = Employee.BASIC|Employee.WITHDAY|Employee.MATCHED
+		 * 如果工作时间不一致，那么就是newtype = Employee.BASIC
+		 * 
+		 */
+		
 		private boolean findMatchedUser(Employee dest,Employee employee) throws IOException {
 			if(dest.getType() == Employee.BASIC){
+				employee.setMatchedType(Employee.BASIC);
 				return true;
 			}
 			
+			// 时间匹配
 			if( (dest.getType()&Employee.WITHDAY) > 1 ){
 				if(dest.getStartDay().equals(employee.getStartDay()))
 					return true;
@@ -193,15 +204,23 @@ public class SameCompany extends Configured implements Tool {
 	//			if(destStart <= compareStart && destEnd >= compareStart && )
 			}
 			
-			if( (dest.getType()&Employee.WITHPOSITION) > 1){
-				if(dest.getPositionType().equals(employee.getPositionType()))
-					return true;
+			// 职位匹配
+			if( (dest.getType()&Employee.WITHPOSITION) == Employee.WITHPOSITION){
+				if( (employee.getType()&Employee.WITHPOSITION) == Employee.WITHPOSITION ){
+					if(dest.getPositionType().equals(employee.getPositionType()))
+						employee.setMatchedType(employee.getMatchedType()|Employee.WITHPOSITION);
+				}
 			}
 			
-			if( (dest.getType()&Employee.WITHBUSINESS) > 1){
-				if(dest.getBusinessType().equals(employee.getBusinessType()))
-					return true;
+			if( (dest.getType()&Employee.WITHBUSINESS) == Employee.WITHBUSINESS){
+				if( (employee.getType()&Employee.WITHBUSINESS) == Employee.WITHBUSINESS){
+					if(dest.getBusinessType().equals(employee.getBusinessType()))
+						employee.setMatchedType(employee.getMatchedType()|Employee.WITHBUSINESS);
+				}
 			}
+			
+			if(employee.getMatchedType() > 0)
+				return true;
 			
 			return false;
 		}
