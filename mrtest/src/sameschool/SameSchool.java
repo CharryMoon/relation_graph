@@ -29,11 +29,14 @@ import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapred.Reducer;
 import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapred.SequenceFileInputFormat;
 import org.apache.hadoop.mapred.SequenceFileOutputFormat;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
+import sameschool.SameSchoolStep2.MapClass;
+import sameschool.SameSchoolStep2.Reduce;
 import util.SimpleStringTokenizer;
 
 
@@ -61,43 +64,21 @@ public class SameSchool extends Configured implements Tool {
 			List<String> fields = simpleStringTokenizer.getAllElements();
 			String str = value.toString();
 			StringBuilder valueStr = new StringBuilder();
-//			String[] snsUserEducationTable = str.split("\t");
 			
 			// 高中
 			if(SENIOR.equals(fields.get(CAREER))){
-				valueStr.append("1");
+				valueStr.append("1").append("\t");
 				valueStr.append(fields.get(USER_ID)).append("\t");
 				valueStr.append(fields.get(ENTER_DAY)).append("\t");
 				valueStr.append(fields.get(SCHOOL_CLASS));
 			}
 			else{
-				valueStr.append(fields.get(CAREER));
+				valueStr.append(fields.get(CAREER)).append("\t");
 				valueStr.append(fields.get(USER_ID)).append("\t");
 				valueStr.append(fields.get(ENTER_DAY)).append("\t");
 				valueStr.append(fields.get(SCHOOL_DEPARTMENT));
 			}
 			
-//			if (snsUserEducationTable.length == 9) {
-//				valueStr = MyStringLib.combine("\t", snsUserEducationTable[CAREER], "",
-//									  snsUserEducationTable[ENTER_DAY],
-//									  snsUserEducationTable[USER_ID]);				
-//			} else if (snsUserEducationTable.length == 10) { // may appear exception.
-//				if (SENIOR.equals(snsUserEducationTable[CAREER])) {
-//					System.out.println("error happen..." + str + "end");
-//				}
-//				valueStr = MyStringLib.combine("\t", snsUserEducationTable[CAREER],
-//									  snsUserEducationTable[SCHOOL_DEPARTMENT],
-//									  snsUserEducationTable[ENTER_DAY],
-//									  snsUserEducationTable[USER_ID]);
-//			} else if (snsUserEducationTable.length == 11) {
-//				if (!SENIOR.equals(snsUserEducationTable[CAREER])) {
-//					System.out.println("error happen in here..." + str + "end");
-//				}
-//				valueStr = MyStringLib.combine("\t", snsUserEducationTable[CAREER],
-//									  snsUserEducationTable[SCHOOL_CLASS],
-//									  snsUserEducationTable[ENTER_DAY],
-//									  snsUserEducationTable[USER_ID]);		
-//			}						
 			output.collect(new Text(fields.get(SCHOOL_ID)), new Text(valueStr.toString()));
 		}
 		
@@ -109,11 +90,6 @@ public class SameSchool extends Configured implements Tool {
 		public void reduce(Text key, Iterator<Text> values,
 				OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
-			List<Student> students = new ArrayList<Student>();
-			Student studentA = null;
-			Student studentB = null;
-			int size = -1;
-			int limitSize;
 			
 			// 存放无任何额外信息的用户
 			List<Student> simpleSchoolInfo = new ArrayList<Student>();
@@ -124,9 +100,14 @@ public class SameSchool extends Configured implements Tool {
 			// 填写了时间和院系
 			List<Student> schoolInfo_day_extra = new ArrayList<Student>();
 			
+			Set<String> duplicateCheck = new HashSet<String>();
 			int student_in_school_count=0;
 			while (values.hasNext()) {
 				Student s = convertToStudent(values.next().toString());
+				if(duplicateCheck.contains(s.getUserId()))
+					continue;
+				duplicateCheck.add(s.getUserId());
+
 				if(s.getType() == Student.BASIC)
 					simpleSchoolInfo.add(s);
 				else if(s.getType() == Student.WITHENTERDAY)
@@ -138,46 +119,184 @@ public class SameSchool extends Configured implements Tool {
 				
 				student_in_school_count ++;
 			}
-//			if (size > MAX_STUDENT) {
-//				return ;
-//			}
-//			Collections.sort(students, new ComparatorStudent());
 			
+			/**
+			 * 对于没有任何额外信息的用户,推荐给他信息最完整的用户,是目前我们的策略.
+			 * 从最完整开始推荐,不足的后面部分完整的补上
+			 */
 			for(Student s : simpleSchoolInfo){
-				int counter = 0;
-				for (int i = 0; i < schoolInfo_day_extra.size(); i++) {
-					if(++counter > MAX_RECOMMENT)
+				Set<String> matchedStudent = new HashSet<String>();
+				matchStudentByInfoIntegrity(key, output, simpleSchoolInfo,
+						schoolInfo_enterDay, schoolInfo_extra,
+						schoolInfo_day_extra, s, matchedStudent);
+			}
+			/**
+			 * 对于有填写了任何信息的用户,最优先的策略是寻找和他的额外信息匹配的用户.全部找过一遍以后,
+			 * 才按照信息完整度进行推荐.
+			 */
+			for(Student s : schoolInfo_enterDay){
+				Set<String> matchedStudent = new HashSet<String>();
+				for (Student student : schoolInfo_day_extra) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
 						break;
-					output.collect(key, new Text());
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getEnterDay().equals(student.getEnterDay()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
 				}
-				for (int i = 0; i < schoolInfo_extra.size(); i++) {
-					if(++counter > MAX_RECOMMENT)
+				for (Student student : schoolInfo_enterDay) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
 						break;
-					output.collect(key, new Text());
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getEnterDay().equals(student.getEnterDay()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
 				}
-				for (int i = 0; i < schoolInfo_enterDay.size(); i++) {
-					if(++counter > MAX_RECOMMENT)
+				matchStudentByInfoIntegrity(key, output, simpleSchoolInfo,
+						schoolInfo_enterDay, schoolInfo_extra,
+						schoolInfo_day_extra, s, matchedStudent);
+			}
+			//
+			for(Student s : schoolInfo_extra){
+				Set<String> matchedStudent = new HashSet<String>();
+				for (Student student : schoolInfo_day_extra) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
 						break;
-					output.collect(key, new Text());
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getExtra().equals(student.getExtra()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
 				}
+				for (Student student : schoolInfo_extra) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
+						break;
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getExtra().equals(student.getExtra()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
+				}
+				matchStudentByInfoIntegrity(key, output, simpleSchoolInfo,
+						schoolInfo_enterDay, schoolInfo_extra,
+						schoolInfo_day_extra, s, matchedStudent);
+			}
+			//
+			for(Student s : schoolInfo_day_extra){
+				Set<String> matchedStudent = new HashSet<String>();
+				for (Student student : schoolInfo_day_extra) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
+						break;
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getEnterDay().equals(student.getEnterDay()) 
+							&& !s.getExtra().equals(student.getExtra()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
+				}
+				for (Student student : schoolInfo_enterDay) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
+						break;
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getEnterDay().equals(student.getEnterDay()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
+				}
+				for (Student student : schoolInfo_extra) {
+					if(matchedStudent.size() > MAX_RECOMMENT)
+						break;
+					if(s.getUserId().equals(student.getUserId()))
+						continue;
+					if(!s.getExtra().equals(student.getExtra()))
+						continue;
+					
+					matchedStudent.add(student.getUserId());
+					output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, true)));
+				}
+				matchStudentByInfoIntegrity(key, output, simpleSchoolInfo,
+						schoolInfo_enterDay, schoolInfo_extra,
+						schoolInfo_day_extra, s, matchedStudent);
 			}
 			
-			for (int i = 0; i < size; i++) {
-				studentA = students.get(i);
+			
+//			for (int i = 0; i < size; i++) {
+//				studentA = students.get(i);
+//
+//				limitSize = 0;
+//				for (int j = 0; j < size && limitSize < 1000; j++) {
+//					studentB = students.get(j);
+//					
+//					if (studentA.getUserId().equals(studentB.getUserId())) {
+//						continue;
+//					}
+//					
+//					limitSize++;				
+//					output.collect(key, new Text(MyStringLib.combine("\001",
+//							studentA.getUserId(), studentB.getUserId(), key.toString())));					
+//				}
+//			}
+		}
 
-				limitSize = 0;
-				for (int j = 0; j < size && limitSize < 1000; j++) {
-					studentB = students.get(j);
-					
-					if (studentA.getUserId().equals(studentB.getUserId())) {
-						continue;
-					}
-					
-					limitSize++;				
-					output.collect(key, new Text(MyStringLib.combine("\001",
-							studentA.getUserId(), studentB.getUserId(), key.toString())));					
-				}
+		private void matchStudentByInfoIntegrity(Text key,
+				OutputCollector<Text, Text> output,
+				List<Student> simpleSchoolInfo,
+				List<Student> schoolInfo_enterDay,
+				List<Student> schoolInfo_extra,
+				List<Student> schoolInfo_day_extra, Student s,
+				Set<String> matchedStudent) throws IOException {
+			for (Student student : schoolInfo_day_extra) {
+				if(findMatchedUser(key, output, s, matchedStudent, student))
+					break;
 			}
+			for (Student student : schoolInfo_extra) {
+				if(findMatchedUser(key, output, s, matchedStudent, student))
+					break;
+			}
+			for (Student student : schoolInfo_enterDay) {
+				if(findMatchedUser(key, output, s, matchedStudent, student))
+					break;
+			}
+			for (Student student : simpleSchoolInfo) {
+				if(findMatchedUser(key, output, s, matchedStudent, student))
+					break;
+			}
+		}
+
+		private boolean findMatchedUser(Text key,
+				OutputCollector<Text, Text> output, Student s,
+				Set<String> matchedStudent, Student student) throws IOException {
+			if(matchedStudent.size() > MAX_RECOMMENT)
+				return true;
+			if(s.getUserId().equals(student.getUserId()))
+				return false;
+			if(matchedStudent.contains(student.getUserId()))
+				return false;
+			
+			matchedStudent.add(student.getUserId());
+			output.collect(new Text(s.getUserId()), new Text(makeOutputValue(key, student, false)));
+			return false;
+		}
+
+		private String makeOutputValue(Text key, Student student, boolean isMatched) {
+			int type = student.getType();
+			if(isMatched)
+				type |= Student.MATCHED;
+			return student.getUserId()+"\t"+key+"\t"+type;
 		}
 
 		private Student convertToStudent(String string) {
@@ -210,6 +329,16 @@ public class SameSchool extends Configured implements Tool {
 
 	@Override
 	public int run(String[] args) throws Exception {
+		JobConf job = createSameSchoolStep1Job(args);
+		JobClient.runJob(job);
+		String[] params = new String[]{args[1], args[1]+"2"};
+		job = createSameSchoolStep2Job(params);
+		JobClient.runJob(job);
+		
+		return 0; 
+	}
+
+	private JobConf createSameSchoolStep1Job(String[] args) {
 		Configuration conf = getConf();
 		JobConf job = new JobConf(conf, SameSchool.class);
 		
@@ -218,8 +347,8 @@ public class SameSchool extends Configured implements Tool {
 		
 		job.setJobName("same school user analysis step 1...");
 		
-		job.setMapperClass(MapClass.class);
-		job.setReducerClass(Reduce.class);
+		job.setMapperClass(SameSchool.MapClass.class);
+		job.setReducerClass(SameSchool.Reduce.class);
 		
 		job.setInputFormat(TextInputFormat.class);
 		job.setOutputFormat(SequenceFileOutputFormat.class);
@@ -228,20 +357,48 @@ public class SameSchool extends Configured implements Tool {
 		job.setOutputValueClass(Text.class);
 		job.set("mapred.job.queue.name", "cug-taobao-sns");
 		
-//		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
-//		job.setClass("mapred.output.compression.codec", GzipCodec.class,
-//				CompressionCodec.class); //
+		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
+		job.setClass("mapred.output.compression.codec", GzipCodec.class,
+				CompressionCodec.class); //
 		
 		job.setNumReduceTasks(100);
 		job.set("mapred.child.java.opts","-Xmx896m");
 		
-		job.setCompressMapOutput(true); //config the map output for compress.
-		job.setMapOutputCompressorClass(GzipCodec.class);
-		JobClient.runJob(job);
-		
-		return 0; 
+//		job.setCompressMapOutput(true); //config the map output for compress.
+//		job.setMapOutputCompressorClass(GzipCodec.class);
+		return job;
 	}
 	
+	private JobConf createSameSchoolStep2Job(String[] args) {
+		Configuration conf = getConf();
+		JobConf job = new JobConf(conf, SameSchoolStep2.class);
+		
+		FileInputFormat.setInputPaths(job, new Path(args[0]));
+		FileOutputFormat.setOutputPath(job, new Path(args[1]));
+		
+		job.setJobName("same school user analysis step 2...");
+		
+		job.setMapperClass(SameSchool.MapClass.class);
+		job.setReducerClass(SameSchool.Reduce.class);
+		
+		job.setInputFormat(SequenceFileInputFormat.class);
+		job.setOutputFormat(SequenceFileOutputFormat.class);
+		
+		job.setOutputKeyClass(Text.class);
+		job.setOutputValueClass(Text.class);
+		job.set("mapred.job.queue.name", "cug-taobao-sns");
+		
+		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
+		job.setClass("mapred.output.compression.codec", GzipCodec.class,
+				CompressionCodec.class); 
+		
+		job.setNumReduceTasks(100);
+		job.set("mapred.child.java.opts","-Xmx896m");
+//		job.setCompressMapOutput(true); //config the map output for compress.
+//		job.setMapOutputCompressorClass(GzipCodec.class);
+		return job;
+	}
+
 	public static void main(String[] args) throws Exception {
 		int status = ToolRunner.run(new Configuration(), new SameSchool(), args);
 		System.exit(status);

@@ -30,11 +30,11 @@ import util.SimpleStringTokenizer;
 
 public class SameCompanyStep2 extends Configured implements Tool {
 	private final static double Wt = 3.0;
-	private final static double Wk = 1-(double)7347986277.0/(double)32792266871.0;
+	private final static double Wk = 1-(double)79809888.0/(double)32792266871.0;
 	private final static int TO_USER_ID = 0;
 	private final static int COMPANY_NAME = 1;
 	private final static int MATCHTYPE = 2;
-	private final static String TYPE = "14";
+	private final static String TYPE = "12";
 	// 一个用户最多的同学校数据条数
 	private final static int MAX_SAME_COMPANY = 800;
 	private final static int MAX_SAME_COMPANY_SINGLE = 200;
@@ -137,18 +137,18 @@ public class SameCompanyStep2 extends Configured implements Tool {
 				double score = 0.0;
 				int sonWeight = 0;
 				for(String storeedCompany : storeedCompanies){
-					String type = storeedCompany.substring(storeedCompany.indexOf(c_t_sperator)+1);
-					if( (Integer.parseInt(type) & Employee.MATCHED) == Employee.MATCHED){
-						sonWeight += Integer.bitCount(Integer.parseInt(type));
-					}
-					else
-						sonWeight += Employee.BASIC;
+					// type  matchtype
+					String combinedType = storeedCompany.substring(storeedCompany.indexOf(c_t_sperator)+1);
+					int[] types = Employee.getSplitType(combinedType);
+					sonWeight += Integer.bitCount(types[0]);
+					sonWeight += Integer.bitCount(types[1]);
 				}
 				double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 				double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
 				score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
 
-				// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.所以socre先用int保存
+				// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
+				// 所以socre先乘以一个大叔然后用int保存
 				int mscore = (int)(score * 100000);
 				context.write(new Text(), new Text(key +FIELD_SEPERATOR
 											+TYPE +FIELD_SEPERATOR

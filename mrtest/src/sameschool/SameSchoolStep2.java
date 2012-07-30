@@ -1,131 +1,252 @@
 package sameschool;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.math.NumberUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
-import org.apache.hadoop.mapred.FileInputFormat;
-import org.apache.hadoop.mapred.FileOutputFormat;
-import org.apache.hadoop.mapred.JobClient;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.MapReduceBase;
-import org.apache.hadoop.mapred.Mapper;
-import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.Reducer;
-import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.SequenceFileInputFormat;
-import org.apache.hadoop.mapred.SequenceFileOutputFormat;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Mapper.Context;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
+import com.sun.istack.internal.Nullable;
+import com.sun.org.apache.xml.internal.serializer.ToUnknownStream;
 
+import samecompany.Employee;
+import samecompany.SameCompanyStep2;
+import util.SimpleStringTokenizer;
+
+/**
+ * 我们先分析用户的学校数量分布.
+ * 根据2012-07-12的数据显示
+ * 1	5476411
+ * 2	2929827
+ * 3	56504
+ * 4	4801
+ * 5	1277
+ * 6	1
+ * 因为用户的最大学校上限是5个,6个的是垃圾数据.
+ * 4-5个也基本是垃圾. 可以看到99%以上的都是1-2个的用户.也就是说如果上限是1000个,
+ * 那么普通用户就会推出1000/500个同学校的人.我们把总数调整到800/400
+ * @author leibiao
+ *
+ */
 public class SameSchoolStep2 extends Configured implements Tool {
-	private final static int FROM_USER_ID = 0;
-	private final static int TO_USER_ID = 1;
-	private final static int SCHOOL_ID = 2;
-	private final static int MAX_SCHOOL = 1000;
+	private final static double Wt = 5.0;
+	private final static double Wk = 1-(double)7347986277.0/(double)32792266871.0;
+//	private final static int FROM_USER_ID = 0;
+	private final static int TO_USER_ID = 0;
+	private final static int SCHOOL_ID = 1;
+	private final static int MATCHTYPE = 2;
 	private final static String TYPE = "13";
+	// 一个用户最多的同学校数据条数
+	private final static int MAX_SAME_SCHOOL = 800;
+	private final static int MAX_SAME_SCHOOL_SINGLE = 200;
+	//
+	private final static String FIELD_SEPERATOR = "\001";
+	private final static String s_s_spetator = "\002";
+	private final static String s_t_sperator = "\003";
+
 	
-	public static class MapClass extends MapReduceBase implements
-			Mapper<Text, Text, Text, Text> {
+	public static class MapClass extends Mapper<Text, Text, Text, Text>{
 		
+		/**
+		 * 上一步产生类似
+		 * fromUserId	toUserId	schoolId	type
+		 *
+		 */
 		@Override
-		public void map(Text key, Text value,
-				OutputCollector<Text, Text> output, Reporter reporter)
-				throws IOException {
-			// TODO Auto-generated method stub
-			String fromIdToId = null;
-			String str = value.toString();
-			String[] snsUserSameSchoolTable = str.split("\001");
-						
-//			System.out.println("str:[" + str + "]");
-//			System.out.println("snsTableLength:[" + snsUserSameCellphoneTable.length + "]");
-			fromIdToId = MyStringLib.combineForKey(20, snsUserSameSchoolTable[FROM_USER_ID],
-					snsUserSameSchoolTable[TO_USER_ID]);
-			output.collect(new Text(fromIdToId), new Text(snsUserSameSchoolTable[SCHOOL_ID]));
-			
+		public void map(Text key, Text value, Context context) 
+				throws IOException ,InterruptedException {
+//			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 3);
+//			List<String> fields = simpleStringTokenizer.getAllElements();
+//			String fromIdToId = key.toString()+"_"+fields.get(0);
+			context.write(key, value);			
 		}
-		
 	}
 	
-	public static class Reduce extends MapReduceBase implements
-			Reducer<Text, Text, Text, Text> {
+	public static class  Reduce extends Reducer<Text, Text, Text, Text> {
 
 		@Override
-		public void reduce(Text key, Iterator<Text> values,
-				OutputCollector<Text, Text> output, Reporter reporter)
-				throws IOException {
-			// TODO Auto-generated method stub
-			String str = key.toString();
-			String value1 = null;
-			String fromUid = null;
-			String toUid = null;
-			Set<String> schoolIds = new HashSet<String>();
-			
-			while (values.hasNext()) {
-				schoolIds.add(values.next().toString());
-				if (schoolIds.size() >= MAX_SCHOOL) {
-					break;
+		public void reduce(Text key, Iterable<Text> values, Context context) 
+				throws IOException ,InterruptedException {
+			// 一个用户5个学校.每个学校最多1000条.最多会有5000条记录.
+			Map<String, Map<Long, String>> schools = new HashMap<String, Map<Long,String>>();
+			// 用来保存每个里面的计数
+			Map<String, Integer> schoolCounter = new HashMap<String, Integer>();
+			// 用来保存已经命中的用户,需要进行合并
+			Map<Long, String> matchedUsers = new HashMap<Long, String>(100);
+			int leftCounter = 0;
+			Iterator<Text> itor = values.iterator();
+			while (itor.hasNext()) {
+				SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(itor.next().toString(), "\t", 4);
+				List<String> fields = simpleStringTokenizer.getAllElements();
+				Long toUid = NumberUtils.toLong(fields.get(TO_USER_ID), 0);
+				if(toUid == 0)
+					continue;
+				String schoolId = fields.get(SCHOOL_ID);
+				String matchType = fields.get(MATCHTYPE);
+				
+				if(schoolCounter.containsKey(schoolId)){
+					if(schoolCounter.get(schoolId) >= MAX_SAME_SCHOOL_SINGLE){
+						if(schools.containsKey(schoolId)){
+							Map<Long, String> schoolMap = schools.get(schoolId);
+							schoolMap.put(toUid, fields.get(MATCHTYPE));
+						}
+						else{
+							Map<Long, String> schoolMap = new HashMap<Long, String>();
+							schoolMap.put(toUid, fields.get(MATCHTYPE));
+							schools.put(schoolId, schoolMap);
+						}
+						leftCounter ++;
+					}
+					else{
+						if(putAndCombineUser(matchedUsers, matchType, toUid, schoolId))
+							continue;
+						schoolCounter.put(schoolId, schoolCounter.get(schoolId)+1);
+					}
+				}
+				else{
+					schoolCounter.put(schoolId, 1);
+					putAndCombineUser(matchedUsers, matchType, toUid, schoolId);
 				}
 			}
-			value1 = MyStringLib.merge(schoolIds, ",");			
-			fromUid = MyStringLib.removeZeroHead(str.substring(0, 20));
-			toUid = MyStringLib.removeZeroHead(str.substring(20, 40));		
-			output.collect(key, new Text(MyStringLib.combine("\001", fromUid, toUid,
-					TYPE, String.valueOf(schoolIds.size()), value1)));
+			// 过滤一次是不是有多个共同学校的存在
+			
+			// 如果不足,考虑补全,从前面剩余的数据中随机的抽取数据,直到补满为止
+			if(matchedUsers.size() < MAX_SAME_SCHOOL){
+				if(matchedUsers.size() + leftCounter <= MAX_SAME_SCHOOL){
+					for(String schoolId : schools.keySet()){
+						Map<Long, String> map = schools.get(schoolId);
+						for(Long uid : map.keySet()){
+							putAndCombineUser(matchedUsers, map.get(uid), uid, schoolId);
+						}
+					}
+				}
+				// random take , not implement
+				else{
+					for(String schoolId : schools.keySet()){
+						Map<Long, String> map = schools.get(schoolId);
+						for(Long uid : map.keySet()){
+							putAndCombineUser(matchedUsers, map.get(uid), uid, schoolId);
+							if(matchedUsers.size() > MAX_SAME_SCHOOL)
+								break;
+						}
+						if(matchedUsers.size() > MAX_SAME_SCHOOL)
+							break;
+					}
+				}
+			}
+
+			for(Long uid : matchedUsers.keySet()){
+				int count = 1;
+				String[] storeedSchools = matchedUsers.get(uid).split(s_s_spetator);
+				count = storeedSchools.length;
+				double score = 0.0;
+				int sonWeight = 0;
+				for(String storeedSchool : storeedSchools){
+					// type  matchtype
+					String combinedType = storeedSchool.substring(storeedSchool.indexOf(s_t_sperator)+1);
+					int[] types = Employee.getSplitType(combinedType);
+					sonWeight += Integer.bitCount(types[0]);
+					sonWeight += Integer.bitCount(types[1]);
+				}
+				double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
+				double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
+				score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
+
+				// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
+				// 所以socre先乘以一个大叔然后用int保存
+				int mscore = (int)(score * 100000);
+
+				context.write(new Text(), new Text(key +FIELD_SEPERATOR
+											+TYPE +FIELD_SEPERATOR
+											+ uid +FIELD_SEPERATOR
+											+ count +FIELD_SEPERATOR
+											+ mscore +FIELD_SEPERATOR
+											+ matchedUsers.get(uid)));
+			}
+		}
+
+		private boolean putAndCombineUser(Map<Long, String> matchedUsers,
+				String type, Long toUid, String schoolId) {
+			if(matchedUsers.containsKey(toUid)){
+				String content = matchedUsers.get(toUid);
+				String[] storeedSchools = content.split(s_s_spetator);
+				for(String storeedSchool : storeedSchools){
+					String sid = storeedSchool.substring(0, storeedSchool.indexOf(s_t_sperator));
+					if(schoolId.equals(sid))
+						return true;
+				}
+				matchedUsers.remove(toUid);
+				content += s_s_spetator+schoolId+s_t_sperator+type;
+				matchedUsers.put(toUid, content);
+			}
+			else{
+				matchedUsers.put(toUid, schoolId+" "+type);
+				
+			}
+			return false;
 		}
 		
 	}
 	
 	@Override
 	public int run(String[] args) throws Exception {
-		// TODO Auto-generated method stub
-		Configuration conf = getConf();
-		JobConf job = new JobConf(conf, SameSchoolStep2.class);
-		Path in = new Path(getInputPath()); // it is used on Zeus.
-		Path out = new Path(System.getenv("instance.job.outputPath")); // it is used on Zeus.
-		
-		FileInputFormat.setInputPaths(job, in);
-		FileOutputFormat.setOutputPath(job, out);
-		
-		job.setJobName("Same school step2 user...");
-		
-		job.setMapperClass(MapClass.class);
-		job.setReducerClass(Reduce.class);
-		
-		job.setInputFormat(SequenceFileInputFormat.class);
-		job.setOutputFormat(SequenceFileOutputFormat.class);
-		
+		Job job = new Job(getConf());
+		job.setJarByClass(SameSchoolStep2.class);
+		job.setJobName("same school step 2 ...");
+		job.setNumReduceTasks(50);
+
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
-		job.set("mapred.job.queue.name", "cug-taobao-sns");
-		
-		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
-		job.setClass("mapred.output.compression.codec", GzipCodec.class,
-				CompressionCodec.class); 
-		
-		job.setNumReduceTasks(100);
-//		job.setCompressMapOutput(true); //config the map output for compress.
-//		job.setMapOutputCompressorClass(GzipCodec.class);
-		JobClient.runJob(job);
-		
-		return 0;
+
+		job.setMapperClass(sameschool.SameSchoolStep2.MapClass.class);
+		job.setReducerClass(sameschool.SameSchoolStep2.Reduce.class);
+
+		job.setInputFormatClass(SequenceFileInputFormat.class);
+		SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
+		job.setOutputFormatClass(SequenceFileOutputFormat.class);
+
+		// 由于zeus的时间参数不能正常运作,所以这里我们自己指定时间.
+		// 替换 参数中的yyyyMMdd
+		Calendar cal = Calendar.getInstance();
+		cal.set(Calendar.DAY_OF_MONTH, cal.get(Calendar.DAY_OF_MONTH)-1);
+		SimpleDateFormat s = new SimpleDateFormat("yyyyMMdd");
+		String datepath = s.format(cal.getTime());
+		String path = args[0].replaceAll("yyyyMMdd", datepath);
+		FileInputFormat.setInputPaths(job, new Path(path));
+		String outpath = args[1].replaceAll("yyyyMMdd", datepath);
+		FileOutputFormat.setOutputPath(job, new Path(outpath));
+
+		job.getConfiguration().set("degreeWeight", args[2]);
+		job.getConfiguration().set("distributeParam", args[3]);
+		boolean success = job.waitForCompletion(true);
+		return success ? 0 : 1;
 	}
 	
-	private String getInputPath() {
-		// TODO Auto-generated method stub
-		String inputPath = "/group/taobao-sns/yeshao.yxq/SameSchoolGziped/";
-		System.out.println("SameSchoolStep2.getInputPath():" + inputPath);
-		return inputPath;
-	}
-
 	public static void main(String[] args) throws Exception {
 		int status = ToolRunner.run(new Configuration(), new SameSchoolStep2(), args);
 		System.exit(status);

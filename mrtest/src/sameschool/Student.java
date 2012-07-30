@@ -18,6 +18,7 @@ public class Student {
 	public static final int WITHENTERDAY = 2;
 	public static final int WITHCLASS = 4;
 	public static final int FULL = 7;
+	public static final int MATCHED = 8;
 	private int type;
 	
 	public int getSchoolId() {

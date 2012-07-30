@@ -157,7 +157,7 @@ public class SameCompany extends Configured implements Tool {
 	
 					if(!needMatch || findMatchedUser(e, employee)){
 						matchedStudent.add(employee.getUserId());
-						context.write(new Text(e.getUserId()), new Text(makeOutputValue(key, employee, true)));
+						context.write(new Text(e.getUserId()), new Text(makeOutputValue(key, employee, needMatch)));
 					}
 				}
 			}
@@ -165,23 +165,19 @@ public class SameCompany extends Configured implements Tool {
 	
 		/**
 		 * 传入的员工对象中的type是他原来拥有的属性，比如有工作时间，有部门等等。
-		 * 如果命中了就会修改原来的属性标记为匹配标记。
-		 * 比如原来是有工作时间，那么oldtype = Employee.BASIC|Employee.WITHDAY
-		 * 如果工作时间一致，那么newtype = Employee.BASIC|Employee.WITHDAY|Employee.MATCHED
-		 * 如果工作时间不一致，那么就是newtype = Employee.BASIC
-		 * 
+		 * 如果命中了就会在命中类型上打上标记。
 		 */
 		
 		private boolean findMatchedUser(Employee dest,Employee employee) throws IOException {
 			if(dest.getType() == Employee.BASIC){
-				employee.setMatchedType(Employee.BASIC);
-				return true;
+//				employee.setMatchedType(Employee.BASIC_MATCHED);
+				return false;
 			}
 			
 			// 时间匹配
 			if( (dest.getType()&Employee.WITHDAY) > 1 ){
 				if(dest.getStartDay().equals(employee.getStartDay()))
-					return true;
+					employee.setMatchedType(Employee.DAY_MATCHED);
 	//			//
 	//			SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 	//			long destStart = 0;
@@ -208,14 +204,21 @@ public class SameCompany extends Configured implements Tool {
 			if( (dest.getType()&Employee.WITHPOSITION) == Employee.WITHPOSITION){
 				if( (employee.getType()&Employee.WITHPOSITION) == Employee.WITHPOSITION ){
 					if(dest.getPositionType().equals(employee.getPositionType()))
-						employee.setMatchedType(employee.getMatchedType()|Employee.WITHPOSITION);
+						employee.setMatchedType(employee.getMatchedType()|Employee.POSITIONTYPE_MATCHED);
+					
+					if(StringUtils.isNotBlank(dest.getPosition()) && StringUtils.isNotBlank(employee.getPosition()))
+						employee.setMatchedType(employee.getMatchedType()|Employee.POSITION_MATCHED);
 				}
 			}
 			
+			// 行业匹配
 			if( (dest.getType()&Employee.WITHBUSINESS) == Employee.WITHBUSINESS){
 				if( (employee.getType()&Employee.WITHBUSINESS) == Employee.WITHBUSINESS){
 					if(dest.getBusinessType().equals(employee.getBusinessType()))
-						employee.setMatchedType(employee.getMatchedType()|Employee.WITHBUSINESS);
+						employee.setMatchedType(employee.getMatchedType()|Employee.BUSINESSTYPE_MATCHED);
+					
+					if(StringUtils.isNotBlank(dest.getBusinessDetail()) && StringUtils.isNotBlank(employee.getBusinessDetail()) )
+						employee.setMatchedType(employee.getMatchedType()|Employee.BUSINESSDETAIL_MATCHED);
 				}
 			}
 			
@@ -224,12 +227,12 @@ public class SameCompany extends Configured implements Tool {
 			
 			return false;
 		}
-	
+
 		private String makeOutputValue(Text key, Employee employee, boolean isMatched) {
 			int type = employee.getType();
 			if(isMatched)
 				type |= Employee.MATCHED;
-			return employee.getUserId()+"\t"+key+"\t"+type;
+			return employee.getUserId()+"\t"+key+"\t"+employee.getCombineType();
 		}
 	
 		private Employee convertToEmployee(String string) {
