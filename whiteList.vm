@@ -1,0 +1,193 @@
+<link rel="stylesheet" href="http://a.tbcdn.cn/p/global/1.0/global-min.css" />
+<script src="http://a.tbcdn.cn/s/kissy/1.2.0/kissy-min.js"></script>
+<script src="http://a.tbcdn.cn/??s/kissy/1.2.0/kissy-min.js,p/sns/1.1/sns.js?t=20120611.js"></script>
+	<br/>
+	查询的类型
+	<input type="checkbox" name="type" value="1" />评论
+	<input type="checkbox" name="type" value="2" />叽歪
+	<input type="checkbox" name="type" value="3" />关注
+	<input type="checkbox" name="type" value="4" />赞
+	<input type="checkbox" name="type" value="5" />最近来访
+	<input type="checkbox" name="type" value="6" />圈子回帖&nbsp;
+	新增白名单nick<input type="text" id="queryNick"> </input> <button type="button" onclick="query();">查询</button>
+	<br/>
+	<br/>
+<table style="word-break: break-all;border-color:#000;" border="1px">
+	<thead>
+		<th style="width: 5%;">userId</th>
+		<th style="width: 8%;">nick</th>
+		<th style="width: 8%;">类别</th>
+		<th style="width: 8%;">加入时间</th>
+		<th style="width: 7%;">解除白名单</th>
+	</thead>
+	<tbody>
+
+	#set($count  = 0)
+	#if($!list) #foreach($suspectUserDO in $!list)
+		<tr name="$!suspectUserDO.getUserId()_$!suspectUserDO.getType()">
+			<td rowspan="2"><a target="_blank" href="http://i.taobao.com/front.htm?user_id=$!suspectUserDO.getUserId()">$!extendInfo.get($!suspectUserDO.getUserId()).get("nick")<br>
+			<img src="http://wwc.taobaocdn.com/avatar/getAvatar.do?userId=$!suspectUserDO.getUserId()&width=40&height=40&type=sns"><br>
+			$!suspectUserDO.getUserId()</a></td>
+			#if($!suspectUserDO.getType() == 1)
+			<td><a href="#" class="T_Popup" data-userId="$!suspectUserDO.getUserId()">评论</a></td>
+			#elseif($!suspectUserDO.getType() == 2)
+			<td><a href="#" class="J_Popup" data-userId="$!suspectUserDO.getUserId()">叽歪</a></td>
+			#elseif($!suspectUserDO.getType() == 3)
+			<td>关注</td>
+			#elseif($!suspectUserDO.getType() == 4)
+			<td>赞</td>
+			#elseif($!suspectUserDO.getType() == 5)
+			<td>最近来访</td>
+			#else
+			<td>圈子回帖</td>
+			#end
+			<td>$!suspectUserDO.getActionCount()</td>
+			<td>$!suspectUserDO.getValidActionCount()</td>
+			#set($rate = "$!suspectUserDO.getSuspectRate()")
+			#set($index = $rate.indexOf("."))
+			#if($index < 0)
+				#set($index = $rate.length())
+			#end
+			<td>$!rate.substring(0, $index)</td>
+			#set($uic = $!extendInfo.get($!suspectUserDO.getUserId()).get("uic"))
+			<td>$uic.get(0)/$uic.get(1)</td>
+			#set($fc = $!extendInfo.get($!suspectUserDO.getUserId()).get("fc"))
+			<td>$fc.get(0)/$fc.get(1)/$fc.get(2)</td>
+			<td><button type="button" onclick="addtoBlacklist($!suspectUserDO.getUserId(), $!suspectUserDO.getType(), $count)">加入</button></td>
+		</tr>
+		<tr name="$!suspectUserDO.getUserId()_$!suspectUserDO.getType()">
+			<td colspan="8">$!suspectUserDO.getContent()</td>
+		</tr>
+		#set($count  = $count + 1)
+		#end   #end
+	</tbody>
+</table>
+#set($prePage = $curPage - 1)
+#if ( $prePage <= 0 )
+	#set($prePage = 1)
+#end
+#set($nextPage = $curPage + 1)
+#set($param = -1)
+<a onclick="makePage($!prePage)" >上一页</a>
+<a onclick="makePage($!nextPage)">下一页</a>
+<script type="text/javascript">
+	function query()
+	{
+		var param1 = new Array();
+		if(document.getElementsByName("type")[0].checked == true)
+			param1.push("1");
+		if(document.getElementsByName("type")[1].checked == true)
+			param1.push("2");
+		if(document.getElementsByName("type")[2].checked == true)
+			param1.push("3");
+		if(document.getElementsByName("type")[3].checked == true)
+			param1.push("4");
+		if(document.getElementsByName("type")[4].checked == true)
+			param1.push("5");
+		if(document.getElementsByName("type")[5].checked == true)
+			param1.push("6");
+			
+		var paramtype = "type=";
+		for(i=0;i<param1.length;i++){
+			paramtype += param1[i];
+			if(i!=param1.length-1)
+				paramtype += ",";
+		}
+		var paramOrder = "orderby=";
+		for(i=0;i<3;i++){
+			if(document.getElementsByName("sort")[i].checked == true){
+				paramOrder += document.getElementsByName("sort")[i].value;
+				break;
+			}
+		}
+		var paramNick = "nick=";
+		if(document.getElementById("queryNick").value.length > 0)
+			paramNick += document.getElementById("queryNick").value;
+		window.location = "$!{subsoilServer}/suspect/suspectUser.htm?"+paramtype+"&"+paramOrder+"&"+"page=1"+"&"+paramNick;
+		
+	}
+	function makePage(page){
+		var path = ""+window.location;
+		var index = path.indexOf("page=");
+		if(index > 0)
+			window.location = path.substring(0, index) + "page=" +page;
+		else
+			window.location = path + "?page=" +page;
+	}
+	function addtoBlacklist(userId, type, index){
+		KISSY.io.get('addSuspectUserToBlacklist.htm', {userId:userId,type:type}, function(data) {
+			if(data == 1){
+			document.getElementsByName(""+userId+"_"+type)[0].style.display="none";
+			document.getElementsByName(""+userId+"_"+type)[1].style.display="none";
+			}
+			//document.getElementById('extend'+index).innerHTML=data;
+		});
+	}
+	KISSY.ready(function() {
+    var E = KISSY.Event,
+        popup = null;
+	E.on('.T_Popup',"click",function(e){
+		var userId = KISSY.DOM.attr(e.target, 'data-userId');
+		var evt = e;
+		KISSY.io.get('getLastComments.htm', {userId:userId}, function(data) {
+			SNS.use(["sns.util.popup"], function(){
+				popup = new SNS.sys.Popup({
+					title: '最近评论', // 标题
+					content: data, // 文案，支持 HTML
+					width: 600, // 对话框宽度，单位为像素（px）
+					buttons: [
+						{
+							text: "确定",
+							func: function() {
+								this.hide();
+							}
+						}
+					]
+				});
+			    
+			//var topValue = KISSY.DOM.offset(evt.target).top + 10 +'px';
+			//popup.popup[0].style.top = topValue;
+			})
+		});
+	});
+	var jiwaiPopup = null;
+	E.on('.J_Popup',"click",function(e){
+		var userId = KISSY.DOM.attr(e.target, 'data-userId');
+		var evt = e;
+		KISSY.io.get('getLastJiwai.htm', {userId:userId}, function(data) {
+			SNS.use(["sns.util.popup"], function(){
+				jiwaiPopup = new SNS.sys.Popup({
+					title: '最近评论', // 标题
+					content: data, // 文案，支持 HTML
+					width: 600, // 对话框宽度，单位为像素（px）
+					buttons: [
+						{
+							text: "确定",
+							func: function() {
+								this.hide();
+							}
+						}
+					]
+				});
+			    
+			//var topValue = KISSY.DOM.offset(evt.target).top + 10 +'px';
+			//jiwaiPopup.popup[0].style.top = topValue;
+			})
+		});
+	});
+});
+
+	// 初始化部分
+var str = "$type";
+var strs = str.split(",");
+for(i=0;i<strs.length;i++){
+	document.getElementsByName("type")[strs[i]-1].checked = true;
+}
+var ord = "$orderby";
+if(ord == "action_count")
+	document.getElementsByName("sort")[0].checked = true;
+else if(ord == "valid_action_count")
+	document.getElementsByName("sort")[1].checked = true;
+else if(ord == "suspect_rate")
+	document.getElementsByName("sort")[2].checked = true;
+</script>
