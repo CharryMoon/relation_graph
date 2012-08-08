@@ -91,14 +91,17 @@ public class CommonFollow extends Configured implements Tool {
 			double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 			double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
 			score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
+			// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
+			// 所以socre先乘以一个大叔然后用int保存
+			int mscore = (int)(score * 100000);
 
 			StringBuilder sb = new StringBuilder();
 			sb.append(fields.get(USERID)).append(FIELD_SEPERATOR);
 			sb.append(TYPE).append(FIELD_SEPERATOR);
 			sb.append(fields.get(TARGETID)).append(FIELD_SEPERATOR);
 			sb.append(count).append(FIELD_SEPERATOR);
-			sb.append(score).append(FIELD_SEPERATOR);
-			sb.append(ids).append(FIELD_SEPERATOR);
+			sb.append(mscore).append(FIELD_SEPERATOR);
+			sb.append(ids);
 
 			context.write(new Text(), new Text(sb.toString()));
 		}

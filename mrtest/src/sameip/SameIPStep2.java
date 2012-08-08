@@ -50,67 +50,52 @@ public class SameIPStep2 extends Configured implements Tool {
 				throws IOException ,InterruptedException {
 			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 2);
 			List<String> fields = simpleStringTokenizer.getAllElements();
+			if(fields.get(0).length() <= 0 || fields.get(1).length() <=0)
+				return ;
+			
+//			context.write(new Text(key.toString()+"_"+fields.get(0)), new Text(fields.get(1)));
 			context.write(key, value);
 		};
 	}
 
-	public static final class CombinerReduce extends
-			Reducer<Text, Text, Text, Text> {
-//		private final int ONEMAP_SAMEIP_MAX = 1000;
-
-		protected void reduce(Text key, Iterable<Text> values,
-				Context context) throws IOException, InterruptedException {
-			Iterator<Text> it = values.iterator();
-			Map<String, Integer> map = new HashMap<String, Integer>(500);
-			int count = 0;
-			while (it.hasNext()) {
-//				if (count++ > ONEMAP_SAMEIP_MAX)
-//					return;
-				SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(it.next().toString(), "\t", 2);
-				List<String> fields = simpleStringTokenizer.getAllElements();
-				String hashkey = key+"_"+fields.get(0);
-				if(map.containsKey(hashkey)){
-					map.put(hashkey, map.get(hashkey)+1);
-				}
-				else
-					map.put(key+"_"+fields.get(0), 1);
-			}
-			for(String uidkey : map.keySet()){
-				String keys[] = uidkey.split("_");
-				
-				context.write(key, new Text(keys[1]+"\t"+map.get(uidkey)));
-			}
-		}
-	}
-	
 	public static class Reduce extends Reducer<Text, Text, Text, Text> {
-		private static final int ONE_REDUCE_MAX = 1000;
+		private static final int ONE_REDUCE_MAX = 800;
+		private static Map<String, Integer> map = new HashMap<String, Integer>(1000);
 		
 		protected void reduce(Text key, Iterable<Text> values, Context context)
 				throws IOException ,InterruptedException {
-			Map<String, Integer> map = new HashMap<String, Integer>(500);
+			map.clear();
 			Iterator<Text> itor = values.iterator();
+//			String ids[] = key.toString().split("_");
+//			Long fromUid = NumberUtils.toLong(ids[0], 0);
+//			Long toUid = NumberUtils.toLong(ids[1], 0);
+//			if(toUid.longValue() == 0 || fromUid.longValue() == 0)
+//				return;
+			String fromUid = key.toString();
+			if(fromUid.length() <= 0)
+				return;
+			String toUid = "";
+			
+			int count = 0;
 			while (itor.hasNext()) {
-				SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(itor.next().toString(), "\t", 2);
-				List<String> fields = simpleStringTokenizer.getAllElements();
-				Long toUid = NumberUtils.toLong(fields.get(TO_USER_ID), 0);
-				if(toUid == 0)
+				count++;
+				if(count > ONE_REDUCE_MAX)
+					break;
+				String value = itor.next().toString();
+				toUid = value.substring(0,value.indexOf("\t"));
+				if(toUid.length() <= 0 )
 					continue;
 				
-				if(map.size() > ONE_REDUCE_MAX)
-					break;
-				
-				String hashkey = key+"_"+fields.get(TO_USER_ID);
-				if(map.containsKey(hashkey)){
-					map.put(hashkey, map.get(hashkey)+1);
-				}
-				else
-					map.put(key+"_"+fields.get(0), 1);
+				String hashkey = fromUid + "_" + toUid;
+				if (map.containsKey(hashkey)) {
+					map.put(hashkey, map.get(hashkey) + 1);
+				} else
+					map.put(hashkey, 1);
 			}
 			for(String uidkey : map.keySet()){
-				String keys[] = uidkey.split("_");
+				toUid = uidkey.substring(uidkey.indexOf("_")+1, uidkey.length());
 				double score = 0.0;
-				int sonWeight = map.get(uidkey);
+				int sonWeight = count;
 				double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 				double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
 				score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
@@ -118,14 +103,43 @@ public class SameIPStep2 extends Configured implements Tool {
 				// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
 				// 所以socre先乘以一个大叔然后用int保存
 				int mscore = (int)(score * 100000);
-				context.write(new Text(), new Text(key +FIELD_SEPERATOR
+				context.write(new Text(), new Text(fromUid +FIELD_SEPERATOR
 									+ TYPE +FIELD_SEPERATOR
-									+ keys[1] +FIELD_SEPERATOR
+									+ toUid +FIELD_SEPERATOR
 									+ sonWeight +FIELD_SEPERATOR
 									+ mscore +FIELD_SEPERATOR
 									));
 			}
+			context.progress();
+		}
+	}
 
+	public static final class CombinerReduce extends
+			Reducer<Text, Text, Text, Text> {
+		// private final int ONEMAP_SAMEIP_MAX = 1000;
+
+		protected void reduce(Text key, Iterable<Text> values, Context context)
+				throws IOException, InterruptedException {
+			Iterator<Text> it = values.iterator();
+			Map<String, Integer> map = new HashMap<String, Integer>(500);
+			int count = 0;
+			while (it.hasNext()) {
+				// if (count++ > ONEMAP_SAMEIP_MAX)
+				// return;
+				SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(
+						it.next().toString(), "\t", 2);
+				List<String> fields = simpleStringTokenizer.getAllElements();
+				String hashkey = key + "_" + fields.get(0);
+				if (map.containsKey(hashkey)) {
+					map.put(hashkey, map.get(hashkey) + 1);
+				} else
+					map.put(key + "_" + fields.get(0), 1);
+			}
+			for (String uidkey : map.keySet()) {
+				String keys[] = uidkey.split("_");
+
+				context.write(key, new Text(keys[1] + "\t" + map.get(uidkey)));
+			}
 		}
 	}
 
@@ -133,13 +147,14 @@ public class SameIPStep2 extends Configured implements Tool {
 		Job job = new Job(getConf());
 		job.setJarByClass(SameIPStep2.class);
 		job.setJobName("same company step 2 ...");
-		job.setNumReduceTasks(50);
+		job.setNumReduceTasks(200);
+		job.getConfiguration().set("mapred.child.java.opts","-Xmx1500m");
 
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
 
 		job.setMapperClass(SameIPStep2.MapClass.class);
-		job.setCombinerClass(SameIPStep2.CombinerReduce.class);
+//		job.setCombinerClass(SameIPStep2.CombinerReduce.class);
 		job.setReducerClass(SameIPStep2.Reduce.class);
 
 		job.setInputFormatClass(SequenceFileInputFormat.class);

@@ -83,7 +83,7 @@ public class SameSchoolStep2 extends Configured implements Tool {
 //			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 3);
 //			List<String> fields = simpleStringTokenizer.getAllElements();
 //			String fromIdToId = key.toString()+"_"+fields.get(0);
-			context.write(key, value);			
+			context.write(key, value);
 		}
 	}
 	
@@ -167,11 +167,12 @@ public class SameSchoolStep2 extends Configured implements Tool {
 				double score = 0.0;
 				int sonWeight = 0;
 				for(String storeedSchool : storeedSchools){
-					// type  matchtype
+					// type  matchtype   12345\t7
 					String combinedType = storeedSchool.substring(storeedSchool.indexOf(s_t_sperator)+1);
-					int[] types = Employee.getSplitType(combinedType);
-					sonWeight += Integer.bitCount(types[0]);
-					sonWeight += Integer.bitCount(types[1]);
+//					int[] types = Employee.getSplitType(combinedType);
+//					sonWeight += Integer.bitCount(types[0]);
+//					sonWeight += Integer.bitCount(types[1]);
+					sonWeight += Integer.bitCount(Integer.parseInt(combinedType));
 				}
 				double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 				double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
@@ -205,8 +206,7 @@ public class SameSchoolStep2 extends Configured implements Tool {
 				matchedUsers.put(toUid, content);
 			}
 			else{
-				matchedUsers.put(toUid, schoolId+" "+type);
-				
+				matchedUsers.put(toUid, schoolId+s_t_sperator+type);
 			}
 			return false;
 		}
@@ -218,7 +218,7 @@ public class SameSchoolStep2 extends Configured implements Tool {
 		Job job = new Job(getConf());
 		job.setJarByClass(SameSchoolStep2.class);
 		job.setJobName("same school step 2 ...");
-		job.setNumReduceTasks(50);
+		job.setNumReduceTasks(100);
 
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);

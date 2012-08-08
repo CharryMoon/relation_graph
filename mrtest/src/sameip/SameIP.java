@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -37,6 +38,7 @@ import util.SimpleStringTokenizer;
 /**
  * 同ip的计算源数据来源于,之前已经计算过一次的ip数据.
  * 从用户的所有的的至多1024个ip中取出出现次数最多的3个来进行推测计算.
+ * 我们使用这3个ip来进行计算
  * @author leibiao
  *
  */
@@ -46,6 +48,7 @@ public class SameIP extends Configured implements Tool {
 	public static class SameIPStep1Mapper extends Mapper<LongWritable, Text, Text, Text> {
 		private final int USER_ID_INDEX = 0;
 		private final int IP_INDEX = 1;
+		private final int USER_IP_MAX = 2;
 
 		protected void map(LongWritable key, Text value, Context context) 
 				throws IOException ,InterruptedException {
@@ -55,8 +58,11 @@ public class SameIP extends Configured implements Tool {
 			
 			String[] ips = fields.get(IP_INDEX).split(",");
 			
-			for (int i = 0; i < ips.length; i++) {
+			int limit = USER_IP_MAX > ips.length? ips.length:USER_IP_MAX;
+			for (int i = 0; i < limit; i++) {
 				int ip = IPutil.ipToInt(ips[i]);
+				if(ip == 0)
+					continue;
 				if(StringUtils.isBlank(fields.get(USER_ID_INDEX)))
 					continue;
 				context.write(new Text(String.valueOf(ip)), new Text(fields.get(USER_ID_INDEX)));
@@ -76,10 +82,13 @@ public class SameIP extends Configured implements Tool {
 				if(count++ > ONEMAP_SAMEIP_MAX)
 					break;
 				
+				if(sb.length() > 0)
+					sb.append(",");
+				
 				sb.append(it.next().toString());
-				sb.append(",");
 			}
-			context.write(key, new Text(sb.toString()));
+			if(sb.length() > 0)
+				context.write(key, new Text(sb.toString()));
 		}
 	}
 	
@@ -92,23 +101,32 @@ public class SameIP extends Configured implements Tool {
 			String fromUid = null;
 			String toUid = null;
 			Iterator<Text> itor = values.iterator();
+			System.out.println(new Date());
 			while (itor.hasNext()) {
-				String userIds[] = itor.next().toString().split(",");
-				for(String userId : userIds){
-					if(!users.contains(userId))
-						users.add(userId);
+//				String userIds[] = itor.next().toString().split(",");
+//				for(String userId : userIds){
+//					if(StringUtils.isBlank(userId))
+//						continue;
+//					if(!users.contains(userId))
+//						users.add(userId);
+//				}
+				String userId = itor.next().toString();
+				if (StringUtils.isBlank(userId))
+					continue;
+				if (!users.contains(userId))
+					users.add(userId);
+				if (users.size() > MAX_USERS) {
+					context.setStatus("size to big");
+					return ;
 				}
 			}
-			
-			if (users.size() > MAX_USERS) {
-				context.setStatus("size to big");
-				return ;
-			}
+			System.out.println(new Date());
 			
 			for (int i = 0,count=0; i < users.size()&&count<5000; i++,count++) {
+				context.progress();
 				fromUid = users.get(i);
 				context.setStatus("fromUid:"+fromUid);
-				for (int j = 0,limit = 0; j < users.size() && limit < 1000; j++,limit++) {
+				for (int j = 0,limit = 0; j < users.size() && limit < 800; j++,limit++) {
 					toUid = users.get(j);
 					if (fromUid.equals(toUid)) {
 						continue;
@@ -124,14 +142,14 @@ public class SameIP extends Configured implements Tool {
 		job.setJarByClass(SameIP.class);
 		job.setJobName("Same ip analyze");
 		job.setNumReduceTasks(100);
-		job.getConfiguration().set("mapred.child.java.opts","-Xmx512m");
+		job.getConfiguration().set("mapred.child.java.opts","-Xmx2048m");
 
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
 
 		job.setMapperClass(SameIP.SameIPStep1Mapper.class);
 		job.setReducerClass(SameIP.SameIPStep1Reducer.class);
-		job.setCombinerClass(SameIP.CombinerReduce.class);
+//		job.setCombinerClass(SameIP.CombinerReduce.class);
 
 		job.setInputFormatClass(TextInputFormat.class);
 		SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
@@ -150,7 +168,7 @@ public class SameIP extends Configured implements Tool {
 
 		boolean success = job.waitForCompletion(true);
 		return success ? 0 : 1;
-	}	
+	}
 	
 	public static void main(String[] args) throws Exception {
 		int ret = ToolRunner.run(new SameIP(), args);

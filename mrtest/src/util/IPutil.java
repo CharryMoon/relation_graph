@@ -23,6 +23,6 @@ public class IPutil {
     }
 
     public static void main(String[] args) {
-		System.out.println(ipToInt("10.25.192.1"));
+		System.out.println(ipToInt("211.25.192.1"));
 	}
 }

@@ -2,7 +2,9 @@ package sameschool;
 
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -17,6 +19,7 @@ import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.compress.CompressionCodec;
 import org.apache.hadoop.io.compress.GzipCodec;
@@ -331,9 +334,9 @@ public class SameSchool extends Configured implements Tool {
 	public int run(String[] args) throws Exception {
 		JobConf job = createSameSchoolStep1Job(args);
 		JobClient.runJob(job);
-		String[] params = new String[]{args[1], args[1]+"2"};
-		job = createSameSchoolStep2Job(params);
-		JobClient.runJob(job);
+//		String[] params = new String[]{args[1], args[1]+"2"};
+//		job = createSameSchoolStep2Job(params);
+//		JobClient.runJob(job);
 		
 		return 0; 
 	}
@@ -342,8 +345,16 @@ public class SameSchool extends Configured implements Tool {
 		Configuration conf = getConf();
 		JobConf job = new JobConf(conf, SameSchool.class);
 		
-		FileInputFormat.setInputPaths(job, new Path(args[0]));
-		FileOutputFormat.setOutputPath(job, new Path(args[1]));
+		// 由于zeus的时间参数不能正常运作,所以这里我们自己指定时间.
+		// 替换 参数中的yyyyMMdd
+		Calendar cal = Calendar.getInstance();
+		cal.set(Calendar.DAY_OF_MONTH, cal.get(Calendar.DAY_OF_MONTH)-1);
+		SimpleDateFormat s = new SimpleDateFormat("yyyyMMdd");
+		String datepath = s.format(cal.getTime());
+		String path = args[0].replaceAll("yyyyMMdd", datepath);
+		FileInputFormat.setInputPaths(job, new Path(path));
+		String outpath = args[1].replaceAll("yyyyMMdd", datepath);
+		FileOutputFormat.setOutputPath(job, new Path(outpath));
 		
 		job.setJobName("same school user analysis step 1...");
 		
@@ -352,20 +363,15 @@ public class SameSchool extends Configured implements Tool {
 		
 		job.setInputFormat(TextInputFormat.class);
 		job.setOutputFormat(SequenceFileOutputFormat.class);
+		SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
 		
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
 		job.set("mapred.job.queue.name", "cug-taobao-sns");
 		
-		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
-		job.setClass("mapred.output.compression.codec", GzipCodec.class,
-				CompressionCodec.class); //
-		
 		job.setNumReduceTasks(100);
 		job.set("mapred.child.java.opts","-Xmx896m");
 		
-//		job.setCompressMapOutput(true); //config the map output for compress.
-//		job.setMapOutputCompressorClass(GzipCodec.class);
 		return job;
 	}
 	
@@ -373,8 +379,16 @@ public class SameSchool extends Configured implements Tool {
 		Configuration conf = getConf();
 		JobConf job = new JobConf(conf, SameSchoolStep2.class);
 		
-		FileInputFormat.setInputPaths(job, new Path(args[0]));
-		FileOutputFormat.setOutputPath(job, new Path(args[1]));
+		// 由于zeus的时间参数不能正常运作,所以这里我们自己指定时间.
+		// 替换 参数中的yyyyMMdd
+		Calendar cal = Calendar.getInstance();
+		cal.set(Calendar.DAY_OF_MONTH, cal.get(Calendar.DAY_OF_MONTH)-1);
+		SimpleDateFormat s = new SimpleDateFormat("yyyyMMdd");
+		String datepath = s.format(cal.getTime());
+		String path = args[0].replaceAll("yyyyMMdd", datepath);
+		FileInputFormat.setInputPaths(job, new Path(path));
+		String outpath = args[1].replaceAll("yyyyMMdd", datepath);
+		FileOutputFormat.setOutputPath(job, new Path(outpath));
 		
 		job.setJobName("same school user analysis step 2...");
 		
@@ -388,14 +402,8 @@ public class SameSchool extends Configured implements Tool {
 		job.setOutputValueClass(Text.class);
 		job.set("mapred.job.queue.name", "cug-taobao-sns");
 		
-		job.setBoolean("mapred.output.compress", true); // config the reduce output compress
-		job.setClass("mapred.output.compression.codec", GzipCodec.class,
-				CompressionCodec.class); 
-		
 		job.setNumReduceTasks(100);
 		job.set("mapred.child.java.opts","-Xmx896m");
-//		job.setCompressMapOutput(true); //config the map output for compress.
-//		job.setMapOutputCompressorClass(GzipCodec.class);
 		return job;
 	}
 

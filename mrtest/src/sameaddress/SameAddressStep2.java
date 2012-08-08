@@ -1,100 +1,123 @@
-package follow;
+package sameaddress;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.commons.lang.math.NumberUtils;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.OutputCollector;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
-import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.Mapper.Context;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.TextInputFormat;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
-import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.hadoop.util.Tool;
 import org.apache.hadoop.util.ToolRunner;
 
-import sameschool.Student;
+import samecompany.Employee;
+import samecompany.SameCompanyStep2;
 import util.SimpleStringTokenizer;
 
 /**
- * 取BI计算得到的共同关注的数据,然后转换成我们使用的格式.保存下来
- * 完全的转换,无考虑数据上限等问题
+ * 由于收货地址的数据不全,包括原始的一个备份
+ * 所以先用手机的数据来占位.当有了新的数据以后再使用真实的数据
+ * @author leibiao
+ *
  */
-public class IndirectCommonFollow extends Configured implements Tool {
-	private final static String TYPE = "11";
-	private final static int	USERID  = 2;
-	private final static int	TARGETID  = 3;
-	private final static int	COUNT  = 4;
-	private final static int	FRIEND_IDS  = 5;
-	private final static int	ONEWAYCOUNT  = 6;
-	private final static int	FIELD_MAX  = 7;
-	private final static double Wt = 6.0;
-	private final static double Wk = 1-(double)167821402.0/(double)32792266871.0;
+
+public class SameAddressStep2 extends Configured implements Tool {
+	private final static double Wt = 15.0;
+	private final static double Wk = 1-(double)338957698.0/(double)32792266871.0;
+	private final static int FROM_USER_ID = 0;
+	private final static int TO_USER_ID = 1;
+	private final static int VALUE = 2;
+	private final static int MAX_USERS = 100;
+	private final static String TYPE = "16";
 	// 默认分隔符
 	private final static String FIELD_SEPERATOR = "\001";
 	
-	public static class IndirectCommonFollowMapper extends Mapper<BytesWritable, Text, Text, Text> {
-
-		protected void map(BytesWritable key, Text value, Context context)
+	public static class MapClass extends Mapper<Text, Text, Text, Text> {
+		
+		@Override
+		public void map(Text key, Text value, Context context) 
 				throws IOException ,InterruptedException {
-			List<String> fields = new SimpleStringTokenizer(value.toString(), FIELD_SEPERATOR, FIELD_MAX).getAllElements();
-			if(fields.size()  < FIELD_MAX){
-				context.setStatus(fields.get(0)+" "+fields.get(1)+" " +fields.get(2)+" " +fields.get(3)+" "+fields.get(4));
-				return;
+			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 2);
+			List<String> fields = simpleStringTokenizer.getAllElements();
+						
+			String fromIdToId = fields.get(FROM_USER_ID)+"_"+fields.get(TO_USER_ID);
+			context.write(new Text(fromIdToId), key);
+		}
+		
+	}
+	
+	public static class Reduce extends Reducer<Text, Text, Text, Text> {
+		private static final int PHONE_COUNT_MAX = 10;
+		
+		@Override
+		public void reduce(Text key, Iterable<Text> values,
+				Context context) throws IOException, InterruptedException {
+			Set<String> cellphones = new HashSet<String>();
+			String value1 = null;
+
+			Iterator<Text> itor = values.iterator();
+			while (itor.hasNext()) {
+				if (cellphones.size() > PHONE_COUNT_MAX) {
+					break;
+				}
+
+				String phonenum = itor.next().toString();
+				if(!cellphones.contains(phonenum))
+					cellphones.add(phonenum);
 			}
 			
-			int count = NumberUtils.toInt(fields.get(COUNT), 0);
+//			value1 = MyStringLib.merge(cellphones, ",");
+			String ids[] = key.toString().split("_");
+
+			
 			double score = 0.0;
-			double sonWeight = 0.0;
-			sonWeight = count;
-			sonWeight += NumberUtils.toInt(fields.get(ONEWAYCOUNT), 0)*0.5;
+			int sonWeight = cellphones.size();
 			double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 			double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
 			score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
+
 			// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
 			// 所以socre先乘以一个大叔然后用int保存
 			int mscore = (int)(score * 100000);
 
-			StringBuilder sb = new StringBuilder();
-			sb.append(fields.get(USERID)).append(FIELD_SEPERATOR);
-			sb.append(TYPE).append(FIELD_SEPERATOR);
-			sb.append(fields.get(TARGETID)).append(FIELD_SEPERATOR);
-			sb.append(count).append(FIELD_SEPERATOR);
-			sb.append(mscore).append(FIELD_SEPERATOR);
-			sb.append(fields.get(FRIEND_IDS));
-
-			context.write(new Text(), new Text(sb.toString()));
-		}
+			context.write(new Text(), new Text(ids[0] +FIELD_SEPERATOR
+												+TYPE +FIELD_SEPERATOR
+												+ ids[1] +FIELD_SEPERATOR
+												+ cellphones.size() +FIELD_SEPERATOR
+												+ mscore +FIELD_SEPERATOR
+												));
+		}		
+		
 	}
 	
+	@Override
 	public int run(String[] args) throws Exception {
 		Job job = new Job(getConf());
-		job.setJarByClass(IndirectCommonFollow.class);
-		job.setJobName("indirect common follow");
-		job.setNumReduceTasks(0);
+		job.setJarByClass(SameAddressStep2.class);
+		job.setJobName("Same address step2 user...");
+		job.setNumReduceTasks(100);
+		job.getConfiguration().set("mapred.job.queue.name", "cug-taobao-sns");
 
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(Text.class);
 
-		job.setMapperClass(IndirectCommonFollowMapper.class);
+		job.setMapperClass(MapClass.class);
+		job.setReducerClass(Reduce.class);
 
 		job.setInputFormatClass(SequenceFileInputFormat.class);
 		SequenceFileOutputFormat.setOutputCompressionType(job, SequenceFile.CompressionType.BLOCK);
@@ -118,8 +141,8 @@ public class IndirectCommonFollow extends Configured implements Tool {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		int ret = ToolRunner.run(new IndirectCommonFollow(), args);
-		System.exit(ret);
+		int status = ToolRunner.run(new Configuration(), new SameAddressStep2(), args);
+		System.exit(status);
 	}
-	
+
 }
