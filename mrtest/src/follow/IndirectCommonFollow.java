@@ -50,6 +50,9 @@ public class IndirectCommonFollow extends Configured implements Tool {
 	private final static double Wk = 1-(double)167821402.0/(double)32792266871.0;
 	// 默认分隔符
 	private final static String FIELD_SEPERATOR = "\001";
+	private final static String CONTENT_SEPERATOR = "\002";
+	// 关注的临界值,如果大于这个值,表示可信度很大,小于则大大降低这个可信度
+	private final static int trust_num_valve = 10;
 	
 	public static class IndirectCommonFollowMapper extends Mapper<BytesWritable, Text, Text, Text> {
 
@@ -66,6 +69,10 @@ public class IndirectCommonFollow extends Configured implements Tool {
 			double sonWeight = 0.0;
 			sonWeight = count;
 			sonWeight += NumberUtils.toInt(fields.get(ONEWAYCOUNT), 0)*0.5;
+			if(sonWeight <= trust_num_valve){
+				sonWeight = sonWeight/2;
+			}
+
 			double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 			double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));
 			score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
@@ -79,7 +86,7 @@ public class IndirectCommonFollow extends Configured implements Tool {
 			sb.append(fields.get(TARGETID)).append(FIELD_SEPERATOR);
 			sb.append(count).append(FIELD_SEPERATOR);
 			sb.append(mscore).append(FIELD_SEPERATOR);
-			sb.append(fields.get(FRIEND_IDS));
+			sb.append(fields.get(FRIEND_IDS).replaceAll(",", CONTENT_SEPERATOR));
 
 			context.write(new Text(), new Text(sb.toString()));
 		}

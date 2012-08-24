@@ -52,6 +52,9 @@ public class CommonFollow extends Configured implements Tool {
 	private final static double Wk = 1-(double)640162400.0/(double)32792266871.0;
 	// 默认分隔符
 	private final static String FIELD_SEPERATOR = "\001";
+	private final static String CONTENT_SEPERATOR = "\002";
+	// 关注的临界值,如果大于这个值,表示可信度很大,小于则大大降低这个可信度
+	private final static int trust_num_valve = 10;
 	
 	public static class CommonFollowMapper extends Mapper<BytesWritable, Text, Text, Text> {
 
@@ -87,6 +90,12 @@ public class CommonFollow extends Configured implements Tool {
 				else
 					ids += fields.get(MIXWAY);
 			}
+			ids = ids.replaceAll(",", CONTENT_SEPERATOR);
+			if(sonWeight <= trust_num_valve){
+				sonWeight = sonWeight/2;
+			}
+			
+			
 			double score = 0.0;
 			double degreeWeight = NumberUtils.toDouble(context.getConfiguration().get("degreeWeight"), Wt);
 			double distributeParam = (1-NumberUtils.toDouble(context.getConfiguration().get("distributeParam"), Wk));

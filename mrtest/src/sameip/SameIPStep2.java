@@ -40,13 +40,13 @@ public class SameIPStep2 extends Configured implements Tool {
 	private final static String FIELD_SEPERATOR = "\001";
 	
 	public static class MapClass extends Mapper<Text, Text, Text, Text> {
-		
+
 		/**
 		 * 上一步产生类似
 		 * fromUserId	toUserId	sameip
 		 *
 		 */
-		protected void map(Text key, Text value, Context context) 
+		protected void map(Text key, Text value, Context context)
 				throws IOException ,InterruptedException {
 			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 2);
 			List<String> fields = simpleStringTokenizer.getAllElements();

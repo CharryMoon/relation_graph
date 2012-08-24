@@ -49,7 +49,7 @@ public class InteractiveCombine extends Configured implements Tool {
 		private static Map<String, Double> weightMap = null;
 		private static double weight = 0.0;
 		// 总数,暂时的写死的
-		private static double totalType = 8.0;
+		private static double totalType = 9.0;
 		
 		@Override
 		public void map(BytesWritable key, Text value, Context context)
@@ -62,7 +62,7 @@ public class InteractiveCombine extends Configured implements Tool {
 			
 			double score = 0.0;
 			score = NumberUtils.toDouble(fields.get(FROM_COUNT),0)+NumberUtils.toDouble(fields.get(TO_COUNT), 0);
-			score = Math.sqrt(score)*weight/20;
+			score = weight*score/20;
 			score *= 1/totalType;
 			
 			context.write(new Text(fields.get(FROM_USER_ID)+"_"+fields.get(TO_USER_ID)), 
@@ -108,6 +108,9 @@ public class InteractiveCombine extends Configured implements Tool {
 			else if(path.indexOf("improve_aliS") != -1){
 				getAndSetWeight("improve_aliS");
 			}
+			else if(path.indexOf("follow") != -1){
+				getAndSetWeight("follow");
+			}
 		};
 		
 		private void getAndSetWeight(String keyword){
@@ -149,10 +152,10 @@ public class InteractiveCombine extends Configured implements Tool {
 			// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
 			// 所以socre先乘以一个大叔然后用int保存
 			int mscore = (int)(score * 100000);
-			context.write(new Text(fromUid+FIELD_SEPERATOR
+			context.write(new Text(),new Text(fromUid+FIELD_SEPERATOR
 					+toUid +FIELD_SEPERATOR
 					+combineType +FIELD_SEPERATOR
-					+mscore), new Text());
+					+mscore));
 
 			context.progress();
 		}

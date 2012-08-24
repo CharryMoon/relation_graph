@@ -42,14 +42,15 @@ public class SameCompany extends Configured implements Tool {
 	private static final int MAX_RECOMMEND = 800;
 	
 	public static class SameCompanyMapper extends Mapper<LongWritable, Text, Text, Text> {
-		private final int USER_ID = 1;
-		private final int COMPANY_NAME = 2;
-		private final int BUSINESS_1 = 4;	// 行业类型
-		private final int BUSINESS_2 = 5;	// 行业细分
-		private final int POSITION_1 = 6;	// 职位类型
-		private final int POSITION_2 = 7;	// 具体职位
-		private final int JOB_GMT_START = 8;
-		private final int JOB_GMT_END = 9;
+		private final int OFFSET = 1;
+		private final int USER_ID = 1 + OFFSET;
+		private final int COMPANY_NAME = 2 + OFFSET;
+		private final int BUSINESS_1 = 4 + OFFSET;	// 行业类型
+		private final int BUSINESS_2 = 5 + OFFSET;	// 行业细分
+		private final int POSITION_1 = 6 + OFFSET;	// 职位类型
+		private final int POSITION_2 = 7 + OFFSET;	// 具体职位
+		private final int JOB_GMT_START = 8 + OFFSET;
+		private final int JOB_GMT_END = 9 + OFFSET;
 
 		protected void map(LongWritable key, Text value, Context context) 
 				throws IOException ,InterruptedException {
@@ -270,6 +271,9 @@ public class SameCompany extends Configured implements Tool {
 		Job job = new Job(getConf());
 		job.setJarByClass(SameCompany.class);
 		job.setJobName("SameCompanyStep1");
+		job.getConfiguration().set("mapred.child.java.opts","-Xmx1024m");
+		job.getConfiguration().set("io.sort.factor", "100");
+		job.getConfiguration().set("io.sort.mb", "512");
 		job.setNumReduceTasks(50);
 
 		job.setOutputKeyClass(Text.class);

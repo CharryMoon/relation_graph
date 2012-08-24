@@ -38,16 +38,17 @@ public class RealtionGraphCombine extends Configured implements Tool {
 	// Ä¬ÈÏ·Ö¸ô·û
 	private final static String FIELD_SEPERATOR = "\001";
 	
-	public static class MapClass extends Mapper<BytesWritable, Text, Text, Text> {
+	public static class MapClass extends Mapper<Text, Text, Text, Text> {
 		private final static int FROM_USER_ID = 0;
 		private final static int TO_USER_ID = 1;
 		private final static int TYPE_INDEX = 2;
 		private final static int SCORE_INDEX = 3;
 		
 		@Override
-		public void map(BytesWritable key, Text value, Context context)
+		public void map(Text key, Text value, Context context)
 				throws IOException ,InterruptedException {
-			List<String> fields = new SimpleStringTokenizer(value.toString(), FIELD_SEPERATOR).getAllElements();
+//			System.out.println("key:"+key.toString()+"   value:"+value.toString());
+			List<String> fields = new SimpleStringTokenizer(key.toString(), FIELD_SEPERATOR).getAllElements();
 			if(NumberUtils.toLong(fields.get(FROM_USER_ID), 0) == 0)
 				return;
 			if(NumberUtils.toLong(fields.get(TO_USER_ID), 0) == 0)
@@ -98,7 +99,7 @@ public class RealtionGraphCombine extends Configured implements Tool {
 		Job job = new Job(getConf());
 		job.setJarByClass(RealtionGraphCombine.class);
 		job.setJobName("combine interactive and profile ");
-		job.setNumReduceTasks(200);
+		job.setNumReduceTasks(800);
 		job.getConfiguration().set("mapred.child.java.opts","-Xmx1024m");
 		job.getConfiguration().set("mapred.job.queue.name", "cug-taobao-sns");
 
