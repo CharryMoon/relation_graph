@@ -17,11 +17,10 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.JobConf;
-import org.apache.hadoop.mapred.MapReduceBase;
-import org.apache.hadoop.mapred.Mapper;
 import org.apache.hadoop.mapred.OutputCollector;
-import org.apache.hadoop.mapred.Reporter;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.Mapper.Context;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
 import org.apache.hadoop.mapreduce.lib.input.SequenceFileInputFormat;
@@ -39,7 +38,7 @@ import util.SimpleStringTokenizer;
  * 取BI计算得到的共同关注的数据,然后转换成我们使用的格式.保存下来
  * 完全的转换,无考虑数据上限等问题
  */
-public class IndirectCommonFollow extends Configured implements Tool {
+public class CopyOfIndirectCommonFollow extends Configured implements Tool {
 	private final static String TYPE = "11";
 	private final static int	USERID  = 2;
 	private final static int	TARGETID  = 3;
@@ -55,52 +54,6 @@ public class IndirectCommonFollow extends Configured implements Tool {
 	// 关注的临界值,如果大于这个值,表示可信度很大,小于则大大降低这个可信度
 	private final static int trust_num_valve = 10;
 	
-	public static class IndirectCommonFollowMapper extends MapReduceBase implements
-		Mapper<BytesWritable, Text, Text, Text> {
-		private static double degreeWeight = Wt;
-		private static double distributeParam = Wk;
-		
-		@Override
-		public void configure(JobConf job) {
-			degreeWeight = NumberUtils.toDouble(job.get("degreeWeight"), Wt);
-			distributeParam = (1-NumberUtils.toDouble(job.get("distributeParam"), Wk));
-			super.configure(job);
-		}
-		@Override
-		public void map(BytesWritable key, Text value,
-				OutputCollector<Text, Text> output, Reporter reporter)
-				throws IOException {
-			List<String> fields = new SimpleStringTokenizer(value.toString(), FIELD_SEPERATOR, FIELD_MAX).getAllElements();
-			if(fields.size()  < FIELD_MAX){
-//				context.setStatus(fields.get(0)+" "+fields.get(1)+" " +fields.get(2)+" " +fields.get(3)+" "+fields.get(4));
-				return;
-			}
-			
-			int count = NumberUtils.toInt(fields.get(COUNT), 0);
-			double score = 0.0;
-			double sonWeight = 0.0;
-			sonWeight = count;
-			sonWeight += NumberUtils.toInt(fields.get(ONEWAYCOUNT), 0)*0.5;
-			if(sonWeight <= trust_num_valve){
-				sonWeight = sonWeight/2;
-			}
-			score = Math.sqrt(sonWeight)*degreeWeight*distributeParam/20;
-			// 由于目前ob多个版本之前会有double在不同的版本上不一致的问题.
-			// 所以socre先乘以一个大叔然后用int保存
-			int mscore = (int)(score * 100000);
-
-			StringBuilder sb = new StringBuilder();
-			sb.append(fields.get(USERID)).append(FIELD_SEPERATOR);
-			sb.append(TYPE).append(FIELD_SEPERATOR);
-			sb.append(fields.get(TARGETID)).append(FIELD_SEPERATOR);
-			sb.append(count).append(FIELD_SEPERATOR);
-			sb.append(mscore).append(FIELD_SEPERATOR);
-			sb.append(fields.get(FRIEND_IDS).replaceAll(",", CONTENT_SEPERATOR));
-
-//			context.write(new Text(), new Text(sb.toString()));
-			output.collect(new Text(fields.get(USERID)), new Text(sb.toString()));
-		}
-	}
 	public static class IndirectCommonFollowMapper extends Mapper<BytesWritable, Text, Text, Text> {
 
 		protected void map(BytesWritable key, Text value, Context context)
@@ -141,7 +94,7 @@ public class IndirectCommonFollow extends Configured implements Tool {
 	
 	public int run(String[] args) throws Exception {
 		Job job = new Job(getConf());
-		job.setJarByClass(IndirectCommonFollow.class);
+		job.setJarByClass(CopyOfIndirectCommonFollow.class);
 		job.setJobName("indirect common follow");
 		job.setNumReduceTasks(0);
 
@@ -172,7 +125,7 @@ public class IndirectCommonFollow extends Configured implements Tool {
 	}
 	
 	public static void main(String[] args) throws Exception {
-		int ret = ToolRunner.run(new IndirectCommonFollow(), args);
+		int ret = ToolRunner.run(new CopyOfIndirectCommonFollow(), args);
 		System.exit(ret);
 	}
 	
