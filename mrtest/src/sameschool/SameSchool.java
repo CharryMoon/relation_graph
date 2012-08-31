@@ -46,15 +46,17 @@ import util.SimpleStringTokenizer;
 
 public class SameSchool extends Configured implements Tool {
 	private static final String SENIOR = "1";
-	private static final int USER_ID = 0;	// 用户id
-	private static final int SCHOOL_ID = 1;	// 学校id
-	private static final int ENTER_DAY = 2;	// 入学时间
-	private static final int CAREER = 3;	// (1, "高中"),(2,"大专"), (3, "大学"), (4, * "硕士"), (5, "博士");
+	private static final int OFFSET = 1;
+	private static final int USER_ID = 0 + OFFSET;	// 用户id
+	private static final int SCHOOL_ID = 1 + OFFSET;	// 学校id
+	private static final int ENTER_DAY = 2 + OFFSET;	// 入学时间
+	private static final int CAREER = 3 + OFFSET;	// (1, "高中"),(2,"大专"), (3, "大学"), (4, * "硕士"), (5, "博士");
 
-	private static final int SCHOOL_DEPARTMENT = 9;	// 大学的院系,系统提供,用户选取
-	private static final int SCHOOL_CLASS = 10;		// 当为高中的时候,由用户自由输入
+	private static final int SCHOOL_DEPARTMENT = 9 + OFFSET;	// 大学的院系,系统提供,用户选取
+	private static final int SCHOOL_CLASS = 10 + OFFSET;		// 当为高中的时候,由用户自由输入
+	private static final int INDEX_MAX = SCHOOL_CLASS + 1;
 	private static final int MAX_STUDENT = 20000;
-	private static final int MAX_RECOMMENT = 1000;
+	private static final int MAX_RECOMMENT = 800;
 	
 	public static class MapClass extends MapReduceBase implements
 			Mapper<LongWritable, Text, Text, Text> {		
@@ -63,7 +65,7 @@ public class SameSchool extends Configured implements Tool {
 		public void map(LongWritable key, Text value,
 				OutputCollector<Text, Text> output, Reporter reporter)
 				throws IOException {
-			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", 11);
+			SimpleStringTokenizer simpleStringTokenizer = new SimpleStringTokenizer(value.toString(), "\t", INDEX_MAX);
 			List<String> fields = simpleStringTokenizer.getAllElements();
 			String str = value.toString();
 			StringBuilder valueStr = new StringBuilder();
@@ -111,14 +113,14 @@ public class SameSchool extends Configured implements Tool {
 					continue;
 				duplicateCheck.add(s.getUserId());
 
-				if(s.getType() == Student.BASIC)
-					simpleSchoolInfo.add(s);
-				else if(s.getType() == Student.WITHENTERDAY)
+				if(s.getType() == (Student.BASIC|Student.WITHENTERDAY))
 					schoolInfo_enterDay.add(s);
-				else if(s.getType() == Student.WITHCLASS)
+				else if(s.getType() == (Student.BASIC|Student.WITHCLASS))
 					schoolInfo_extra.add(s);
 				else if(s.getType() == Student.FULL)
 					schoolInfo_day_extra.add(s);
+				else
+					simpleSchoolInfo.add(s);
 				
 				student_in_school_count ++;
 			}
@@ -395,7 +397,7 @@ public class SameSchool extends Configured implements Tool {
 		job.setMapperClass(SameSchool.MapClass.class);
 		job.setReducerClass(SameSchool.Reduce.class);
 		
-		job.setInputFormat(SequenceFileInputFormat.class);
+		job.setInputFormat(TextInputFormat.class);
 		job.setOutputFormat(SequenceFileOutputFormat.class);
 		
 		job.setOutputKeyClass(Text.class);

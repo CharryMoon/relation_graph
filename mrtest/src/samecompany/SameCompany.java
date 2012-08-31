@@ -108,22 +108,22 @@ public class SameCompany extends Configured implements Tool {
 					continue;
 				duplicateCheck.add(e.getUserId());
 
-				if(e.getType() == Employee.BASIC)
-					jobInfo_list.get(onlyjob).add(e);
-				else if(e.getType() == Employee.WITHBUSINESS)
+				if(e.getType() == (Employee.BASIC|Employee.WITHBUSINESS))
 					jobInfo_list.get(job_business).add(e);
-				else if(e.getType() == Employee.WITHPOSITION)
+				else if(e.getType() == (Employee.BASIC|Employee.WITHPOSITION))
 					jobInfo_list.get(job_position).add(e);
-				else if(e.getType() == Employee.WITHDAY)
+				else if(e.getType() == (Employee.BASIC|Employee.WITHDAY))
 					jobInfo_list.get(job_day).add(e);
-				else if(e.getType() == (Employee.WITHBUSINESS|Employee.WITHPOSITION) )
+				else if(e.getType() == (Employee.BASIC|Employee.WITHBUSINESS|Employee.WITHPOSITION) )
 					jobInfo_list.get(job_pos_bus).add(e);
-				else if(e.getType() == (Employee.WITHBUSINESS|Employee.WITHDAY) )
+				else if(e.getType() == (Employee.BASIC|Employee.WITHBUSINESS|Employee.WITHDAY) )
 					jobInfo_list.get(job_day_bus).add(e);
-				else if(e.getType() == (Employee.WITHPOSITION|Employee.WITHDAY) )
+				else if(e.getType() == (Employee.BASIC|Employee.WITHPOSITION|Employee.WITHDAY) )
 					jobInfo_list.get(job_day_pos).add(e);
-				else if(e.getType() == (Employee.WITHPOSITION|Employee.WITHDAY|Employee.WITHBUSINESS) )
+				else if(e.getType() == (Employee.BASIC|Employee.WITHPOSITION|Employee.WITHDAY|Employee.WITHBUSINESS) )
 					jobInfo_list.get(job_day_pos_bus).add(e);
+				else
+					jobInfo_list.get(onlyjob).add(e);
 			}
 			
 			/**

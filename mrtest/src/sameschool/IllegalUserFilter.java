@@ -1,4 +1,4 @@
-package samecompany;
+package sameschool;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -38,14 +38,10 @@ public class IllegalUserFilter extends Configured implements Tool {
 
 	public static class IllegalFilterMapper extends Mapper<LongWritable, Text, Text, Text> {
 
-		private final int USER_ID = 1;
-		private final int COMPANY_NAME = 2;
-		private final int BUSINESS_1 = 4;	// 行业类型
-		private final int BUSINESS_2 = 5;	// 行业细分
-		private final int POSITION_1 = 6;	// 职位类型
-		private final int POSITION_2 = 7;	// 具体职位
-		private final int JOB_GMT_START = 8;
-		private final int JOB_GMT_END = 9;
+		private static final int USER_ID = 0;	// 用户id
+		private static final int SCHOOL_ID = 1;	// 学校id
+		private static final int ENTER_DAY = 2;	// 入学时间
+		private static final int CAREER = 3;	// (1, "高中"),(2,"大专"), (3, "大学"), (4, * "硕士"), (5, "博士");
 
 		protected void map(LongWritable key, Text value, Context context) 
 				throws java.io.IOException ,InterruptedException {
@@ -125,6 +121,7 @@ public class IllegalUserFilter extends Configured implements Tool {
 		Job job = new Job(getConf());
 		job.setJarByClass(IllegalUserFilter.class);
 		job.setJobName("IllegalUserFilter");
+		job.getConfiguration().set("mapred.job.queue.name", "cug-taobao-sns");
 		job.getConfiguration().set("mapred.child.java.opts","-Xmx1024m");
 		job.getConfiguration().set("io.sort.factor", "100");
 		job.getConfiguration().set("io.sort.mb", "512");
